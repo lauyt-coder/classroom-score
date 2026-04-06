@@ -35,8 +35,34 @@
   <div id="root"></div>
 
   <!-- 應用程式邏輯 -->
-  <script type="text/babel">
+  <script type="text/babel" data-type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
     const { useState, useEffect, useMemo } = React;
+
+    // --- Firebase 雲端資料庫設定 ---
+    let app, auth, db;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'classroom-score-app';
+    
+    // 若要部署到個人的 GitHub Pages 永久儲存，請去 Firebase (免費) 申請 Web 專案，
+    // 並將 null 替換成你的金鑰設定，例如：
+    // let myConfig = { apiKey: "...", authDomain: "...", projectId: "..." };
+    let myConfig = let myConfig = {
+  apiKey: "AIzaSyXXXXXXXXXXXX",
+  authDomain: "classroom-score-xxx.firebaseapp.com",
+  projectId: "classroom-score-xxx",
+  storageBucket: "classroom-score-xxx.firebasestorage.app",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:xxxxxx"
+};
+    
+    if (myConfig) {
+      app = initializeApp(myConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+    }
 
     // --- 圖示元件 (免安裝版) ---
     const Trophy = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
@@ -71,6 +97,9 @@
 
     // --- 主程式 ---
     function App() {
+      const [user, setUser] = useState(null);
+      const [isLoaded, setIsLoaded] = useState(false);
+
       const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
       const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
       const [selectedGrade, setSelectedGrade] = useState(GRADES[0]);
@@ -89,6 +118,56 @@
       const [showLeaderboard, setShowLeaderboard] = useState(false);
       const [showCTA, setShowCTA] = useState(false);
       const [deletingId, setDeletingId] = useState(null);
+
+      // 1. 初始化資料庫登入
+      useEffect(() => {
+        if (!auth) {
+          setIsLoaded(true); // 沒有資料庫連線，直接進入本機測試模式
+          return;
+        }
+        const initAuth = async () => {
+          try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+              await signInAnonymously(auth);
+            }
+          } catch (err) {
+            console.error("雲端登入失敗", err);
+            setIsLoaded(true);
+          }
+        };
+        initAuth();
+        const unsubscribe = onAuthStateChanged(auth, (u) => {
+          setUser(u);
+          if (u) setIsLoaded(true);
+        });
+        return () => unsubscribe();
+      }, []);
+
+      // 2. 即時監聽雲端資料庫變更
+      useEffect(() => {
+        if (!user || !db) return;
+
+        // 讀取學生名單
+        const studentsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'students');
+        const unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
+          const loadedStudents = [];
+          snapshot.forEach(doc => loadedStudents.push({ id: doc.id, ...doc.data() }));
+          // 若雲端有資料就覆蓋預設，若無資料也清空預設名單以雲端為主
+          setStudents(loadedStudents);
+        }, (err) => console.error("讀取學生錯誤:", err));
+
+        // 讀取分數與欠交紀錄
+        const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'records');
+        const unsubscribeRecords = onSnapshot(recordsRef, (snapshot) => {
+          const loadedRecords = {};
+          snapshot.forEach(doc => { loadedRecords[doc.id] = doc.data(); });
+          setRecords(loadedRecords);
+        }, (err) => console.error("讀取紀錄錯誤:", err));
+
+        return () => { unsubscribeStudents(); unsubscribeRecords(); };
+      }, [user]);
 
       const filteredStudents = useMemo(() => {
         return students.filter(s => 
@@ -115,23 +194,32 @@
         return [...currentClassData].sort((a, b) => b.points - a.points);
       }, [currentClassData]);
 
-      const handleAddStudent = (e) => {
+      const handleAddStudent = async (e) => {
         e.preventDefault();
         if (!newStudentName.trim()) return;
+        const newId = Date.now().toString();
         const newStudent = {
-          id: Date.now().toString(),
+          id: newId,
           studentNumber: newStudentNum.trim(),
           name: newStudentName.trim(),
           subject: selectedSubject,
           grade: selectedGrade,
           classLevel: selectedClass
         };
-        setStudents([...students, newStudent]);
+        
+        if (db && user) {
+          // 儲存至雲端
+          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', newId), newStudent);
+        } else {
+          // 本機離線儲存 (重新整理會消失)
+          setStudents([...students, newStudent]);
+        }
+        
         setNewStudentName('');
         setNewStudentNum('');
       };
 
-      const handleBulkImport = () => {
+      const handleBulkImport = async () => {
         if (!bulkText.trim()) return;
         const lines = bulkText.split('\n');
         const newStudents = [];
@@ -166,33 +254,60 @@
           });
         });
 
-        setStudents([...students, ...newStudents]);
+        if (db && user) {
+          // 批次寫入雲端
+          for (const s of newStudents) {
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', s.id), s);
+          }
+        } else {
+          setStudents([...students, ...newStudents]);
+        }
+        
         setBulkText('');
         setIsBulkMode(false);
       };
 
-      const handleDeleteStudent = (studentId) => {
-        setStudents(students.filter(s => s.id !== studentId));
+      const handleDeleteStudent = async (studentId) => {
+        if (db && user) {
+          // 從雲端刪除
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', studentId));
+        } else {
+          setStudents(students.filter(s => s.id !== studentId));
+        }
         setDeletingId(null);
       };
 
-      const handleUpdateRecord = (studentId, field, amount) => {
+      const handleUpdateRecord = async (studentId, field, amount) => {
         const recordKey = `${studentId}_${currentMonth}`;
-        setRecords(prev => {
-          const currentRecord = prev[recordKey] || { points: 0, missingBooks: 0, missingOthers: 0 };
-          return {
+        const currentRecord = records[recordKey] || { points: 0, missingBooks: 0, missingOthers: 0 };
+        const updatedRecord = {
+          ...currentRecord,
+          [field]: field === 'points' ? currentRecord[field] + amount : Math.max(0, currentRecord[field] + amount)
+        };
+        
+        if (db && user) {
+          // 同步積分與紀錄至雲端
+          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'records', recordKey), updatedRecord);
+        } else {
+          setRecords(prev => ({
             ...prev,
-            [recordKey]: {
-              ...currentRecord,
-              [field]: field === 'points' ? currentRecord[field] + amount : Math.max(0, currentRecord[field] + amount)
-            }
-          };
-        });
+            [recordKey]: updatedRecord
+          }));
+        }
       };
 
       const theme = selectedSubject === '公經社' 
         ? { primary: 'bg-teal-600', light: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-800', gradient: 'from-teal-500 to-emerald-400', button: 'bg-teal-100 hover:bg-teal-200 text-teal-700' }
         : { primary: 'bg-amber-600', light: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', gradient: 'from-amber-500 to-orange-400', button: 'bg-amber-100 hover:bg-amber-200 text-amber-700' };
+
+      // 等待雲端連線時的畫面
+      if (!isLoaded) {
+        return (
+          <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-500 border-t-transparent"></div>
+          </div>
+        );
+      }
 
       return (
         <div>
