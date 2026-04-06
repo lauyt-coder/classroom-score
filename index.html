@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>課堂表現積分榜</title>
+  
+  <!-- 載入 Tailwind CSS (排版) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 React (核心功能) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- 載入 Babel (瀏覽器編譯) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-up { animation: slideUp 0.6s ease-out forwards; }
+    .delay-100 { animation-delay: 100ms; opacity: 0; }
+    .delay-200 { animation-delay: 200ms; opacity: 0; }
+    .delay-300 { animation-delay: 300ms; opacity: 0; }
+    
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 pb-20">
+  
+  <!-- React 會渲染在這個 div 裡面 -->
+  <div id="root"></div>
+
+  <!-- 應用程式邏輯 -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- 圖示元件 (免安裝版) ---
+    const Trophy = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
+    const BookX = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="m14.5 7-5 5"/><path d="m9.5 7 5 5"/></svg>;
+    const PackageX = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/><path d="m17 13 5 5m-5 0 5-5"/></svg>;
+    const Plus = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+    const Star = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    const Info = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+    const Sparkles = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>;
+    const UserPlus = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>;
+    const CalendarDays = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
+    const BookOpen = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
+    const Award = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>;
+    const Trash2 = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+    const Users = ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+
+    // --- 系統設定 ---
+    const SUBJECTS = ['公經社', '歷史'];
+    const GRADES = ['中一', '中二', '中三', '中四'];
+    const CLASSES = ['A', 'B', 'C', 'D', 'R'];
+
+    const getCurrentMonth = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const INITIAL_STUDENTS = [
+      { id: '1', studentNumber: '01', name: '陳小明', subject: '公經社', grade: '中一', classLevel: 'A' },
+      { id: '2', studentNumber: '02', name: '林心如', subject: '公經社', grade: '中一', classLevel: 'A' },
+      { id: '3', studentNumber: '01', name: '王大文', subject: '歷史', grade: '中二', classLevel: 'B' },
+    ];
+
+    // --- 主程式 ---
+    function App() {
+      const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
+      const [selectedSubject, setSelectedSubject] = useState(SUBJECTS[0]);
+      const [selectedGrade, setSelectedGrade] = useState(GRADES[0]);
+      const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+      
+      const [students, setStudents] = useState(INITIAL_STUDENTS);
+      const [records, setRecords] = useState({});
+      
+      const [newStudentNum, setNewStudentNum] = useState('');
+      const [newStudentName, setNewStudentName] = useState('');
+      
+      const [isBulkMode, setIsBulkMode] = useState(false);
+      const [bulkText, setBulkText] = useState('');
+      
+      const [showTooltip, setShowTooltip] = useState(null);
+      const [showLeaderboard, setShowLeaderboard] = useState(false);
+      const [showCTA, setShowCTA] = useState(false);
+      const [deletingId, setDeletingId] = useState(null);
+
+      const filteredStudents = useMemo(() => {
+        return students.filter(s => 
+          s.subject === selectedSubject && 
+          s.grade === selectedGrade && 
+          s.classLevel === selectedClass
+        );
+      }, [students, selectedSubject, selectedGrade, selectedClass]);
+
+      const currentClassData = useMemo(() => {
+        return filteredStudents.map(student => {
+          const recordKey = `${student.id}_${currentMonth}`;
+          const record = records[recordKey] || { points: 0, missingBooks: 0, missingOthers: 0 };
+          return { ...student, ...record };
+        }).sort((a, b) => {
+          const numA = parseInt(a.studentNumber, 10);
+          const numB = parseInt(b.studentNumber, 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return (a.studentNumber || '').localeCompare(b.studentNumber || '');
+        });
+      }, [filteredStudents, records, currentMonth]);
+
+      const leaderboardData = useMemo(() => {
+        return [...currentClassData].sort((a, b) => b.points - a.points);
+      }, [currentClassData]);
+
+      const handleAddStudent = (e) => {
+        e.preventDefault();
+        if (!newStudentName.trim()) return;
+        const newStudent = {
+          id: Date.now().toString(),
+          studentNumber: newStudentNum.trim(),
+          name: newStudentName.trim(),
+          subject: selectedSubject,
+          grade: selectedGrade,
+          classLevel: selectedClass
+        };
+        setStudents([...students, newStudent]);
+        setNewStudentName('');
+        setNewStudentNum('');
+      };
+
+      const handleBulkImport = () => {
+        if (!bulkText.trim()) return;
+        const lines = bulkText.split('\n');
+        const newStudents = [];
+        
+        let currentMaxNum = students
+          .filter(s => s.subject === selectedSubject && s.grade === selectedGrade && s.classLevel === selectedClass)
+          .reduce((max, s) => Math.max(max, parseInt(s.studentNumber) || 0), 0);
+
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          const parts = trimmed.split(/\s+/);
+          let sNumber = '';
+          let name = trimmed;
+          
+          if (parts.length > 1 && /^\d+$/.test(parts[0])) {
+            sNumber = parts[0];
+            name = parts.slice(1).join(' ');
+          } else {
+            currentMaxNum += 1;
+            sNumber = currentMaxNum.toString().padStart(2, '0');
+          }
+
+          newStudents.push({
+            id: `${Date.now()}-${index}`,
+            studentNumber: sNumber,
+            name: name,
+            subject: selectedSubject,
+            grade: selectedGrade,
+            classLevel: selectedClass
+          });
+        });
+
+        setStudents([...students, ...newStudents]);
+        setBulkText('');
+        setIsBulkMode(false);
+      };
+
+      const handleDeleteStudent = (studentId) => {
+        setStudents(students.filter(s => s.id !== studentId));
+        setDeletingId(null);
+      };
+
+      const handleUpdateRecord = (studentId, field, amount) => {
+        const recordKey = `${studentId}_${currentMonth}`;
+        setRecords(prev => {
+          const currentRecord = prev[recordKey] || { points: 0, missingBooks: 0, missingOthers: 0 };
+          return {
+            ...prev,
+            [recordKey]: {
+              ...currentRecord,
+              [field]: field === 'points' ? currentRecord[field] + amount : Math.max(0, currentRecord[field] + amount)
+            }
+          };
+        });
+      };
+
+      const theme = selectedSubject === '公經社' 
+        ? { primary: 'bg-teal-600', light: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-800', gradient: 'from-teal-500 to-emerald-400', button: 'bg-teal-100 hover:bg-teal-200 text-teal-700' }
+        : { primary: 'bg-amber-600', light: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', gradient: 'from-amber-500 to-orange-400', button: 'bg-amber-100 hover:bg-amber-200 text-amber-700' };
+
+      return (
+        <div>
+          <header className={`bg-gradient-to-r ${theme.gradient} text-white pt-12 pb-16 px-6 shadow-lg rounded-b-3xl mb-8 relative overflow-hidden transition-colors duration-500`}>
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent"></div>
+            <div className="max-w-4xl mx-auto relative z-10 animate-slide-up">
+              <div className="flex items-center gap-3 mb-2">
+                <BookOpen className="w-8 h-8 text-yellow-200" />
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">課堂表現積分榜</h1>
+              </div>
+              <p className="text-lg md:text-xl text-white/90 font-medium">老師您好，請選擇學科與班級，紀錄學生本月的課堂表現。</p>
+            </div>
+          </header>
+
+          <main className="max-w-4xl mx-auto px-4 md:px-6 space-y-8">
+            <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 animate-slide-up delay-100 flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2 text-slate-600 font-semibold mr-4">
+                <Info className="w-5 h-5 text-indigo-500" />
+                <span>系統說明 (點擊了解)：</span>
+              </div>
+              
+              <button onClick={() => setShowTooltip(showTooltip === 'month' ? null : 'month')} className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium transition-colors relative">
+                關於月份清空
+                {showTooltip === 'month' && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-slate-800 text-white p-3 rounded-xl text-sm shadow-xl z-20">
+                    <p>每個月的積分都是獨立計算的！切換到新月份時，介面會呈現全新的紀錄表，方便按月評估學生表現。</p>
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 border-8 border-transparent border-b-slate-800"></div>
+                  </div>
+                )}
+              </button>
+
+              <button onClick={() => setShowTooltip(showTooltip === 'penalty' ? null : 'penalty')} className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-full text-sm font-medium transition-colors relative">
+                關於欠交紀錄
+                {showTooltip === 'penalty' && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-slate-800 text-white p-3 rounded-xl text-sm shadow-xl z-20">
+                    <p>「欠帶書」和「欠物品」是獨立計算次數的，不會直接扣減積分。老師可根據累積次數，另外安排相應的輔導或扣分。</p>
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 border-8 border-transparent border-b-slate-800"></div>
+                  </div>
+                )}
+              </button>
+            </section>
+
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-slide-up delay-200">
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-500 flex items-center gap-1.5"><CalendarDays className="w-4 h-4"/> 選擇月份</label>
+                <input type="month" value={currentMonth} onChange={(e) => setCurrentMonth(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 shadow-sm"/>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-500 flex items-center gap-1.5"><BookOpen className="w-4 h-4"/> 選擇學科</label>
+                <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 shadow-sm cursor-pointer">
+                  {SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-500">年級</label>
+                <select value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 shadow-sm cursor-pointer">
+                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-500">班別</label>
+                <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 shadow-sm cursor-pointer">
+                  {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </section>
+
+            <section className={`bg-white rounded-3xl shadow-sm border ${theme.border} overflow-hidden animate-slide-up delay-300`}>
+              <div className={`${theme.light} px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
+                <div>
+                  <h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}>
+                    {selectedSubject} - {selectedGrade}{selectedClass}班
+                  </h2>
+                  <p className={`text-sm opacity-80 ${theme.text}`}>當前月份：{currentMonth}</p>
+                </div>
+                <button onClick={() => setShowLeaderboard(true)} className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white ${theme.text} border ${theme.border}`}>
+                  <Trophy className="w-5 h-5" /> 查看排行榜
+                </button>
+              </div>
+
+              <div className="p-6">
+                {filteredStudents.length === 0 ? (
+                  <div className="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                    <UserPlus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 font-medium">這個班級還沒有學生名單！<br/>請在下方新增學生。</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {currentClassData.map((student) => (
+                      <div key={student.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all group">
+                        
+                        <div className="flex items-center gap-4 mb-4 md:mb-0">
+                          <div className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center font-bold text-white shadow-inner ${theme.primary}`}>
+                            {student.studentNumber || student.name.charAt(0)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-lg">{student.name}</h3>
+                            <div className="flex items-center flex-wrap gap-2 text-sm mt-1">
+                              <span className="flex items-center gap-1 text-amber-500 font-bold bg-amber-50 px-2 py-0.5 rounded-md">
+                                <Star className="w-4 h-4"/> {student.points} 分
+                              </span>
+                              <span className="flex items-center gap-1 text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
+                                <BookX className="w-3.5 h-3.5"/> 欠書: {student.missingBooks}
+                              </span>
+                              <span className="flex items-center gap-1 text-purple-500 bg-purple-50 px-2 py-0.5 rounded-md">
+                                <PackageX className="w-3.5 h-3.5"/> 欠物: {student.missingOthers}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button onClick={() => handleUpdateRecord(student.id, 'points', 1)} className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors ${theme.button}`}>+1 分</button>
+                          <button onClick={() => handleUpdateRecord(student.id, 'points', 5)} className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors ${theme.button}`}>+5 分</button>
+                          <div className="w-px h-8 bg-slate-200 mx-1 hidden md:block"></div>
+                          <button onClick={() => handleUpdateRecord(student.id, 'missingBooks', 1)} className="px-3 py-1.5 rounded-lg font-medium text-sm bg-slate-100 hover:bg-rose-100 hover:text-rose-700 text-slate-600 transition-colors flex items-center gap-1">
+                            <BookX className="w-4 h-4"/> 記欠書
+                          </button>
+                          <button onClick={() => handleUpdateRecord(student.id, 'missingOthers', 1)} className="px-3 py-1.5 rounded-lg font-medium text-sm bg-slate-100 hover:bg-purple-100 hover:text-purple-700 text-slate-600 transition-colors flex items-center gap-1">
+                            <PackageX className="w-4 h-4"/> 記欠物
+                          </button>
+                          
+                          <div className="ml-2 flex items-center">
+                            {deletingId === student.id ? (
+                              <div className="flex items-center gap-2 bg-rose-50 p-1.5 rounded-lg border border-rose-200">
+                                <span className="text-xs text-rose-600 font-bold px-1">刪除？</span>
+                                <button onClick={() => handleDeleteStudent(student.id)} className="px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded text-xs font-bold transition-colors">是</button>
+                                <button onClick={() => setDeletingId(null)} className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-bold transition-colors">否</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setDeletingId(student.id)} className="p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors" title="刪除學生">
+                                <Trash2 className="w-5 h-5"/>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-slate-50 p-4 sm:p-6 border-t border-slate-100">
+                <div className="flex gap-4 mb-4 border-b border-slate-200">
+                  <button onClick={() => setIsBulkMode(false)} className={`font-bold pb-2 -mb-[1px] border-b-2 transition-colors ${!isBulkMode ? 'border-indigo-500 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>單筆新增</button>
+                  <button onClick={() => setIsBulkMode(true)} className={`font-bold pb-2 -mb-[1px] border-b-2 transition-colors ${isBulkMode ? 'border-indigo-500 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>批次匯入</button>
+                </div>
+
+                {!isBulkMode ? (
+                  <form onSubmit={handleAddStudent} className="flex flex-wrap gap-3 max-w-lg">
+                    <input type="text" placeholder="學號(選填)" value={newStudentNum} onChange={(e) => setNewStudentNum(e.target.value)} className="w-24 bg-white border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input type="text" placeholder="輸入學生姓名..." value={newStudentName} onChange={(e) => setNewStudentName(e.target.value)} className="flex-1 min-w-[150px] bg-white border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button type="submit" disabled={!newStudentName.trim()} className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${theme.primary} hover:opacity-90 shadow-sm`}>
+                      <Plus className="w-5 h-5"/> 加入
+                    </button>
+                  </form>
+                ) : (
+                  <div className="space-y-3">
+                    <textarea rows="5" placeholder="請貼上學生名單 (每行一位)&#10;格式：學號 姓名 (例如：01 陳小明)&#10;若不輸入學號，系統會自動幫您從最大學號往下遞增編號。" value={bulkText} onChange={(e) => setBulkText(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 resize-y" />
+                    <button onClick={handleBulkImport} disabled={!bulkText.trim()} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${theme.primary} hover:opacity-90 shadow-sm`}>
+                      <Users className="w-5 h-5"/> 一鍵載入名單
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+          </main>
+
+          {showLeaderboard && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-slide-up">
+                <div className={`p-6 text-white text-center relative ${theme.primary}`}>
+                  <button onClick={() => setShowLeaderboard(false)} className="absolute right-4 top-4 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">✕</button>
+                  <Trophy className="w-12 h-12 mx-auto mb-2 text-yellow-300" />
+                  <h2 className="text-2xl font-bold">榮譽排行榜</h2>
+                  <p className="opacity-90">{selectedSubject} - {selectedGrade}{selectedClass} ({currentMonth})</p>
+                </div>
+                
+                <div className="p-6 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                  {leaderboardData.length === 0 ? (
+                    <p className="text-center text-slate-500 py-4">暫無數據</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {leaderboardData.map((student, index) => (
+                        <div key={student.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${index === 0 ? 'bg-yellow-100 text-yellow-600 border border-yellow-300' : index === 1 ? 'bg-slate-200 text-slate-600 border border-slate-300' : index === 2 ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 text-slate-400'}`}>
+                              {index + 1}
+                            </div>
+                            <span className="font-bold text-slate-700">
+                              {student.studentNumber && <span className="text-slate-400 text-sm mr-2">{student.studentNumber}</span>}
+                              {student.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-amber-50 text-amber-600 px-3 py-1 rounded-lg font-bold">
+                            <Star className="w-4 h-4"/> {student.points}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                  <button onClick={() => setShowLeaderboard(false)} className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-full font-bold transition-colors">關閉榜單</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center">
+            {showCTA && (
+              <div className="mb-4 bg-white px-6 py-4 rounded-2xl shadow-xl border border-indigo-100 animate-slide-up relative text-center min-w-[280px]">
+                <h4 className="text-indigo-600 font-bold mb-1 flex items-center justify-center gap-2"><Award className="w-5 h-5"/> 教學小語</h4>
+                <p className="text-slate-600 font-medium">「教學的重點不在於分數的比較，<br/>而是看見每個孩子每天一點一滴的進步！」</p>
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white"></div>
+              </div>
+            )}
+            <button onClick={() => setShowCTA(!showCTA)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-full font-bold shadow-lg hover:shadow-indigo-500/30 transition-all hover:-translate-y-1 flex items-center gap-2 border-2 border-indigo-400/30">
+              <Sparkles className="w-5 h-5"/> 完成本日課堂結算
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 將 React 渲染到畫面上
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
