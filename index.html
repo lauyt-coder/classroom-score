@@ -38,13 +38,13 @@
     const { useState, useEffect, useMemo } = React;
 
     const firebaseConfig = {
-  apiKey: "AIzaSyCx-ZSTEysKAfoeh5TLWtJf_bD0JbZ4grM",
-  authDomain: "classroom-score.firebaseapp.com",
-  projectId: "classroom-score",
-  storageBucket: "classroom-score.firebasestorage.app",
-  messagingSenderId: "708233614479",
-  appId: "1:708233614479:web:fd532329c8adc4248a8cfa"
-};
+      apiKey: "AIzaSyCx-ZSTEysKAfoeh5TLWtJf_bD0JbZ4grM",
+      authDomain: "classroom-score.firebaseapp.com",
+      projectId: "classroom-score",
+      storageBucket: "classroom-score.firebasestorage.app",
+      messagingSenderId: "708233614479",
+      appId: "1:708233614479:web:fd532329c8adc4248a8cfa"
+    };
 
     let app, auth, db;
     const appId = 'classroom-score-app';
@@ -206,7 +206,7 @@
         setNewStudentNum('');
       };
       
-// 刪除單個學生
+      // 刪除單個學生
       const handleDeleteStudent = async (studentId) => {
         if (db && user) {
           await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', studentId));
@@ -216,7 +216,7 @@
         setDeletingId(null);
       };
 
-      // 👇 【在此處新增】一鍵清空當前班級所有學生
+      // 一鍵清空當前班級所有學生
       const handleClearClass = async () => {
         if (filteredStudents.length === 0) {
           alert("當前班級沒有可刪除的學生！");
@@ -227,16 +227,15 @@
         if (!confirmDelete) return;
 
         if (db && user) {
-          // 批次刪除雲端資料
           for (const s of filteredStudents) {
             await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', s.id));
           }
         } else {
-          // 單機模式刪除
           const currentIds = new Set(filteredStudents.map(s => s.id));
           setStudents(students.filter(s => !currentIds.has(s.id)));
         }
       };
+
       const handleBulkImport = async () => {
         if (!bulkText.trim()) return;
         const lines = bulkText.split('\n');
@@ -284,21 +283,11 @@
         setIsBulkMode(false);
       };
 
-      const handleDeleteStudent = async (studentId) => {
-        if (db && user) {
-          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', studentId));
-        } else {
-          setStudents(students.filter(s => s.id !== studentId));
-        }
-        setDeletingId(null);
-      };
-
       const handleUpdateRecord = async (studentId, field, amount) => {
         const recordKey = `${studentId}_${currentMonth}`;
         const currentRecord = records[recordKey] || { points: 0, missingBooks: 0, missingOthers: 0 };
         const updatedRecord = {
           ...currentRecord,
-          // 分數可以為負，但欠交次數最低為 0
           [field]: field === 'points' ? currentRecord[field] + amount : Math.max(0, currentRecord[field] + amount)
         };
         
@@ -441,7 +430,7 @@
                 ) : (
                   <div className="space-y-4">
                     {currentClassData.map((student) => (
-                      <div key={student.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all group">
+                      <div key={student.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all group relative">
                         
                         <div className="flex items-center gap-4 mb-4 lg:mb-0">
                           <div className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center font-bold text-white shadow-inner ${theme.primary}`}>
