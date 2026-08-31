@@ -205,7 +205,38 @@
         setNewStudentName('');
         setNewStudentNum('');
       };
+      
+// 刪除單個學生
+      const handleDeleteStudent = async (studentId) => {
+        if (db && user) {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', studentId));
+        } else {
+          setStudents(students.filter(s => s.id !== studentId));
+        }
+        setDeletingId(null);
+      };
 
+      // 👇 【在此處新增】一鍵清空當前班級所有學生
+      const handleClearClass = async () => {
+        if (filteredStudents.length === 0) {
+          alert("當前班級沒有可刪除的學生！");
+          return;
+        }
+
+        const confirmDelete = confirm(`⚠️ 確定要清空「${selectedGrade}${selectedClass}班 (${selectedSubject})」的所有學生嗎？此動作無法復原！`);
+        if (!confirmDelete) return;
+
+        if (db && user) {
+          // 批次刪除雲端資料
+          for (const s of filteredStudents) {
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', s.id));
+          }
+        } else {
+          // 單機模式刪除
+          const currentIds = new Set(filteredStudents.map(s => s.id));
+          setStudents(students.filter(s => !currentIds.has(s.id)));
+        }
+      };
       const handleBulkImport = async () => {
         if (!bulkText.trim()) return;
         const lines = bulkText.split('\n');
@@ -384,9 +415,21 @@
                   </h2>
                   <p className={`text-sm opacity-80 ${theme.text}`}>當前月份：{currentMonth}</p>
                 </div>
-                <button onClick={() => setShowLeaderboard(true)} className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white ${theme.text} border ${theme.border}`}>
-                  <Trophy className="w-5 h-5" /> 查看排行榜
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* 一鍵清空當前班級按鈕 */}
+                  <button 
+                    onClick={handleClearClass} 
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-bold text-xs sm:text-sm bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all shadow-sm"
+                    title="清空目前選擇班級的所有學生"
+                  >
+                    <Trash2 className="w-4 h-4" /> 清空本班
+                  </button>
+
+                  {/* 查看排行榜按鈕 */}
+                  <button onClick={() => setShowLeaderboard(true)} className={`flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white ${theme.text} border ${theme.border}`}>
+                    <Trophy className="w-4 h-4 sm:w-5 sm:h-5" /> 查看排行榜
+                  </button>
+                </div>
               </div>
 
               <div className="p-4 sm:p-6">
